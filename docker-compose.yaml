@@ -94,10 +94,10 @@ services:
       - "8088:8088"
     environment:
       - SUPERSET_SECRET_KEY=1234
-      - SUPERSET_DATABASE_URI=postgresql+psycopg2://superset:superset@db:5432/superset
+      - SUPERSET_DATABASE_URI=postgresql+psycopg2://superset:superset@postgres_dwh:5432/superset
       - REDIS_HOST=redis
     depends_on:
-      - db
+      - postgres_dwh
       - redis
     restart: always
 
