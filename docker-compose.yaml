@@ -94,8 +94,15 @@ services:
       - "8088:8088"
     environment:
       - SUPERSET_SECRET_KEY=1234
+      - SUPERSET_SECRET_KEY=1234
       - SUPERSET_DATABASE_URI=postgresql+psycopg2://superset:superset@postgres_dwh:5432/superset
       - REDIS_HOST=redis
+      - SUPERSET_ADMIN_USERNAME=admin
+      - SUPERSET_ADMIN_PASSWORD=admin
+      - SUPERSET_ADMIN_FIRST_NAME=admin
+      - SUPERSET_ADMIN_LAST_NAME=admin
+      
+      
     depends_on:
       - postgres_dwh
       - redis
