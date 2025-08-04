@@ -101,7 +101,6 @@ services:
       - redis
     restart: always
 
-minio:
   minio:
     image: minio/minio:RELEASE.2025-02-10T16-29-55Z
     restart: always
@@ -115,15 +114,15 @@ minio:
       - "9000:9000"
       - "9001:9001"
 
-postgres_dwh:
-  image: postgres:13
-  environment:
-    POSTGRES_USER: postgres
-    POSTGRES_PASSWORD: postgres
-    POSTGRES_DB: postgres
-  restart: always
-  ports:
-    - "5432:5432"
+  postgres_dwh:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    restart: always
+    ports:
+      - "5432:5432"
 
   postgres:
     image: postgres:13
