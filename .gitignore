@@ -210,3 +210,7 @@ data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
 data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
 data/.minio.sys/buckets/.usage.json/xl.meta
 data/.minio.sys/config/iam/sts/Z7FXALEV3C00S6M8AD1C/identity.json/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/.heal/mrf/list.bin
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
