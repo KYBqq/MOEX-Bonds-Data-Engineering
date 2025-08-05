@@ -225,6 +225,6 @@ logs/scheduler/latest
 logs/scheduler/latest
 
 #Project
-data/
-logs/
+data\
+logs\
 cred.py
