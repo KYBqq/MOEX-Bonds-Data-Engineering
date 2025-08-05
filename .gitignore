@@ -229,3 +229,8 @@ data\
 logs\
 cred.py
 \xl.meta
+Заметки, US-Treasury-Data-Engineering.url
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin.bkp/xl.meta
