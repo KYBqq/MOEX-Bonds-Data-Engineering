@@ -228,3 +228,4 @@ logs/scheduler/latest
 data\
 logs\
 cred.py
+\xl.meta
