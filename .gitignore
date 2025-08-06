@@ -234,3 +234,9 @@ data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
 data/.minio.sys/buckets/.usage.json/xl.meta
 data/.minio.sys/buckets/dev/.usage-cache.bin/xl.meta
 data/.minio.sys/buckets/dev/.usage-cache.bin.bkp/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin.bkp/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
