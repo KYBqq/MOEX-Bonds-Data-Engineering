@@ -22,7 +22,7 @@ SHORT_DESCRIPTION = "Загрузка исторических котирово�
 
 default_args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(2024, 1, 1, tz="Europe/Moscow"),
+    "start_date": pendulum.datetime(2025, 8, 5, tz="Europe/Moscow"),
     "catchup": True,
     "retries": 3,
     "retry_delay": pendulum.duration(hours=1),
