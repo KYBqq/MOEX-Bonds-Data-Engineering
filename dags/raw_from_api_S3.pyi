@@ -9,7 +9,7 @@ from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 
-OWNER = "i.korsakov"
+OWNER = "const"
 DAG_ID = "raw_ofzpd_from_moex_to_s3"
 
 LAYER = "raw"
