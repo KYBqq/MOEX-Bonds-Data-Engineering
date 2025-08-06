@@ -198,7 +198,7 @@ def fetch_and_store_ofz(**context):
         # Очищаем временную таблицу
         con.execute("DROP TABLE ofz_temp")
         con.close()
-        logging.info(f"✅ OFZ data saved to {s3_path}")
+        logging.info(f"✅ Bond data saved to {s3_path}")
         
     except Exception as e:
         logging.error(f"Ошибка при сохранении в S3: {e}")
