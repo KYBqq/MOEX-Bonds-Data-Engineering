@@ -1,7 +1,5 @@
 import logging
-
 import requests
-import pandas as pd
 import duckdb
 import pendulum
 from airflow import DAG
@@ -9,7 +7,7 @@ from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 
-OWNER = "const"
+OWNER = "i.korsakov"
 DAG_ID = "raw_ofzpd_from_moex_to_s3"
 
 LAYER = "raw"
@@ -22,7 +20,7 @@ SHORT_DESCRIPTION = "Загрузка исторических котирово�
 
 default_args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(2025, 8, 5, tz="Europe/Moscow"),
+    "start_date": pendulum.datetime(2025, 8, 1, tz="Europe/Moscow"),
     "catchup": True,
     "retries": 3,
     "retry_delay": pendulum.duration(hours=1),
@@ -30,51 +28,75 @@ default_args = {
 
 def get_dates(**context) -> tuple[str, str]:
     start = context["data_interval_start"].format("YYYY-MM-DD")
-    end   = context["data_interval_end"].format("YYYY-MM-DD")
+    end = context["data_interval_end"].format("YYYY-MM-DD")
     return start, end
 
 def fetch_and_store_ofzpd(**context):
     start_date, end_date = get_dates(**context)
     logging.info(f"Start loading OFZ-PD from {start_date} to {end_date}")
 
-    # 1) Получаем список ВСЕХ ОФЗ-ПД
-    url_list = "https://iss.moex.com/iss/securities.json?q=ОФЗ-ПД&iss.meta=off"
+    # 1) Получаем список ОФЗ-ПД c доски TQOB
+    url_list = (
+        "https://iss.moex.com/iss/engines/stock/markets/bonds/"
+        "boards/TQOB/securities.json?iss.meta=off"
+    )
     resp = requests.get(url_list)
     resp.raise_for_status()
-    sec_data = resp.json()["securities"]
-    sec_cols = sec_data["columns"]
-    sec_rows = sec_data["data"]
-    secids = [row[sec_cols.index("SECID")] for row in sec_rows]
-
-    if not secids:
-        logging.warning("No OFZ-PD found, exiting")
+    data = resp.json().get("securities")
+    if not data:
+        logging.error("Нет блока 'securities' в ответе")
         return
 
-    # 2) Собираем историю по каждому SECID
+    sec_cols = data["columns"]      # ['secid', 'shortname', ...]
+    sec_rows = data["data"]
+
+    # Проверяем, что названия колонок совпадают
+    if "secid" not in sec_cols or "shortname" not in sec_cols:
+        logging.error(f"Ожидались 'secid' и 'shortname' в {sec_cols}")
+        return
+
+    secid_idx = sec_cols.index("secid")
+    name_idx  = sec_cols.index("shortname")
+
+    # Фильтруем только ОФЗ-ПД
+    secids = [
+        row[secid_idx]
+        for row in sec_rows
+        if row[name_idx] and "ОФЗ-ПД" in row[name_idx]
+    ]
+    if not secids:
+        logging.warning("Не найдено ни одной ОФЗ-ПД")
+        return
+
+    logging.info(f"Найдено {len(secids)} выпусков ОФЗ-ПД")
+
+    # 2) Скачиваем историю по каждому secid
     all_rows = []
+    cols = None
     for sec in secids:
         url_hist = (
-            "https://iss.moex.com/iss/history"
-            f"/engines/stock/markets/bonds/boards/TQOB"
-            f"/securities/{sec}.json"
+            f"https://iss.moex.com/iss/history/engines/stock/markets/bonds/"
+            f"boards/TQOB/securities/{sec}.json"
             f"?from={start_date}&till={end_date}&iss.meta=off"
         )
         r = requests.get(url_hist)
         if not r.ok:
-            logging.warning(f"Failed to fetch {sec}: HTTP {r.status_code}")
+            logging.warning(f"Ошибка {r.status_code} при запросе {sec}")
             continue
+
         hist = r.json().get("history", {})
         cols = hist.get("columns", [])
         for row in hist.get("data", []):
             all_rows.append(row + [sec])
-    cols.append("SECID")
 
     if not all_rows:
-        logging.warning("No historical data loaded, exiting")
+        logging.warning("Нет исторических данных за период")
         return
 
-    # 3) Создаём pandas DataFrame и регистрируем в DuckDB
-    df = pd.DataFrame(all_rows, columns=cols)
+    # Добавляем колонку secid
+    cols.append("secid")
+
+    # 3) Загружаем в DuckDB и пишем в S3
     con = duckdb.connect()
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute(f"""
@@ -84,12 +106,14 @@ def fetch_and_store_ofzpd(**context):
         SET s3_secret_access_key = '{SECRET_KEY}';
         SET s3_use_ssl = FALSE;
     """)
-    con.register("ofzpd_df", df)
 
-    # 4) Выгружаем в Parquet на S3
-    s3_path = f"s3://dev/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofzpd.parquet"
+    # Регистрируем данные
+    con.register("ofzpd_data", (all_rows, cols))
+
+    # Копируем в Parquet на S3
+    s3_path = f"s3://prod/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofzpd.parquet"
     con.execute(f"""
-        COPY ofzpd_df
+        COPY (SELECT * FROM ofzpd_data)
         TO '{s3_path}'
         (FORMAT 'parquet', COMPRESSION 'gzip');
     """)
