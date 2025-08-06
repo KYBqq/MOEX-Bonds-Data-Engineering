@@ -51,28 +51,63 @@ def get_and_transfer_raw_data_to_ods_pg(**context):
     start_date, end_date = get_dates(**context)
     logging.info(f"💻 Start load for dates: {start_date}/{end_date}")
 
-    con = duckdb.connect()
-    con.sql(f"""
-        SET TIMEZONE='UTC';
-        INSTALL httpfs;
-        LOAD httpfs;
-        SET s3_url_style = 'path';
-        SET s3_endpoint = 'minio:9000';
-        SET s3_access_key_id = '{ACCESS_KEY}';
-        SET s3_secret_access_key = '{SECRET_KEY}';
-        SET s3_use_ssl = FALSE;
+    try:
+        con = duckdb.connect()
+        
+        # Настройка S3 и PostgreSQL
+        con.execute("INSTALL httpfs; LOAD httpfs;")
+        con.execute("INSTALL postgres; LOAD postgres;")
+        
+        con.execute(f"""
+            SET TIMEZONE='UTC';
+            SET s3_url_style = 'path';
+            SET s3_endpoint = 'minio:9000';
+            SET s3_access_key_id = '{ACCESS_KEY}';
+            SET s3_secret_access_key = '{SECRET_KEY}';
+            SET s3_use_ssl = FALSE;
+        """)
 
-        CREATE SECRET dwh_postgres (
-            TYPE postgres,
-            HOST 'postgres_dwh',
-            PORT 5432,
-            DATABASE postgres,
-            USER 'postgres',
-            PASSWORD '{PASSWORD}'
-        );
+        # Проверяем существование файла в S3
+        s3_path = f"s3://dev/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofz.parquet"
+        
+        try:
+            result = con.execute(f"SELECT COUNT(*) FROM '{s3_path}'").fetchone()
+            row_count = result[0] if result else 0
+            logging.info(f"Found {row_count} rows in {s3_path}")
+            
+            if row_count == 0:
+                logging.warning(f"No data found in {s3_path}")
+                return
+                
+        except Exception as e:
+            logging.error(f"Cannot read file {s3_path}: {e}")
+            raise
 
-        ATTACH '' AS dwh_postgres_db (TYPE postgres, SECRET dwh_postgres);
+        # Создание секрета для PostgreSQL
+        con.execute(f"""
+            CREATE SECRET IF NOT EXISTS dwh_postgres (
+                TYPE postgres,
+                HOST 'postgres_dwh',
+                PORT 5432,
+                DATABASE 'postgres',
+                USER 'postgres',
+                PASSWORD '{PASSWORD}'
+            );
+        """)
 
+        # Подключение к PostgreSQL
+        con.execute("ATTACH '' AS dwh_postgres_db (TYPE postgres, SECRET dwh_postgres);")
+
+        # Проверяем существование целевой таблицы
+        try:
+            con.execute(f"DESCRIBE dwh_postgres_db.{SCHEMA}.{TARGET_TABLE}")
+            logging.info(f"Target table {SCHEMA}.{TARGET_TABLE} exists")
+        except Exception as e:
+            logging.error(f"Target table {SCHEMA}.{TARGET_TABLE} does not exist: {e}")
+            raise
+
+        # Читаем данные из S3 и вставляем в PostgreSQL
+        insert_sql = f"""
         INSERT INTO dwh_postgres_db.{SCHEMA}.{TARGET_TABLE}
         (
             boardid,
@@ -107,45 +142,62 @@ def get_and_transfer_raw_data_to_ods_pg(**context):
             trade_session_date
         )
         SELECT
-            boardId AS boardid,
-            tradeDate::DATE AS tradedate,
-            shortName AS shortname,
-            secId AS secid,
-            numTrades AS numtrades,
-            value,
-            low,
-            high,
-            close,
-            legalClosePrice AS legalcloseprice,
-            accInt AS accint,
-            waiverPrice AS waprice,
-            yieldClose AS yieldclose,
-            openPrice AS open,
-            volume,
-            marketPrice2 AS marketprice2,
-            marketPrice3 AS marketprice3,
-            mp2ValTrd AS mp2valtrd,
-            marketPrice3TradesValue AS marketprice3tradesvalue,
-            matDate::DATE AS matdate,
-            duration,
-            yieldAtWaP AS yieldatwap,
-            couponPercent AS couponpercent,
-            couponValue AS couponvalue,
-            lastTradeDate::DATE AS lasttradedate,
-            faceValue AS facevalue,
-            currencyId AS currencyid,
-            faceUnit AS faceunit,
-            tradingSession AS tradingsession,
-            tradeSessionDate::DATE AS trade_session_date
-        FROM 's3://dev/{LAYER}/{SOURCE}/{start_date}/{start_date}_00-00-00.gz.parquet';
-    """
-    )
-    con.close()
-    logging.info(f"✅ Download for date success: {start_date}")
+            COALESCE(BOARDID, '') AS boardid,
+            TRADEDATE::DATE AS tradedate,
+            COALESCE(SHORTNAME, '') AS shortname,
+            COALESCE(SECID, '') AS secid,
+            COALESCE(NUMTRADES, 0) AS numtrades,
+            COALESCE(VALUE, 0) AS value,
+            COALESCE(LOW, 0) AS low,
+            COALESCE(HIGH, 0) AS high,
+            COALESCE(CLOSE, 0) AS close,
+            COALESCE(LEGALCLOSEPRICE, 0) AS legalcloseprice,
+            COALESCE(ACCINT, 0) AS accint,
+            COALESCE(WAPRICE, 0) AS waprice,
+            COALESCE(YIELDCLOSE, 0) AS yieldclose,
+            COALESCE(OPEN, 0) AS open,
+            COALESCE(VOLUME, 0) AS volume,
+            COALESCE(MARKETPRICE2, 0) AS marketprice2,
+            COALESCE(MARKETPRICE3, 0) AS marketprice3,
+            COALESCE(MP2VALTRD, 0) AS mp2valtrd,
+            COALESCE(MARKETPRICE3TRADESVALUE, 0) AS marketprice3tradesvalue,
+            MATDATE::DATE AS matdate,
+            COALESCE(DURATION, 0) AS duration,
+            COALESCE(YIELDATWAP, 0) AS yieldatwap,
+            COALESCE(COUPONPERCENT, 0) AS couponpercent,
+            COALESCE(COUPONVALUE, 0) AS couponvalue,
+            LASTTRADEDATE::DATE AS lasttradedate,
+            COALESCE(FACEVALUE, 0) AS facevalue,
+            COALESCE(CURRENCYID, '') AS currencyid,
+            COALESCE(FACEUNIT, '') AS faceunit,
+            COALESCE(TRADINGSESSION, '') AS tradingsession,
+            COALESCE(TRADEDATE, CURRENT_DATE)::DATE AS trade_session_date
+        FROM '{s3_path}'
+        WHERE TRADEDATE IS NOT NULL
+        """
+        
+        logging.info("Starting data insertion...")
+        con.execute(insert_sql)
+        
+        # Проверяем количество вставленных записей
+        inserted_count = con.execute(f"""
+            SELECT COUNT(*) FROM dwh_postgres_db.{SCHEMA}.{TARGET_TABLE} 
+            WHERE trade_session_date = '{start_date}'::DATE
+        """).fetchone()[0]
+        
+        logging.info(f"✅ Successfully inserted {inserted_count} records for date: {start_date}")
+        
+    except Exception as e:
+        logging.error(f"❌ Error in data transfer: {e}")
+        raise
+    finally:
+        if 'con' in locals():
+            con.close()
+
 
 with DAG(
     dag_id=DAG_ID,
-    schedule_interval='0 5 * * *',
+    schedule_interval='0 7 * * *',  # Запуск в 7:00, после первого DAG (6:00)
     default_args=default_args,
     tags=['s3', 'ods', 'pg'],
     description=SHORT_DESCRIPTION,
@@ -159,16 +211,23 @@ with DAG(
         task_id='start',
     )
 
+    # Упрощенная функция для External Task Sensor
+    def get_external_execution_date(execution_date, **context):
+        # Возвращаем ту же дату выполнения, что и у текущего DAG'а
+        return execution_date
+
     sensor_on_raw_layer = ExternalTaskSensor(
         task_id='sensor_on_raw_layer',
-        external_dag_id='raw_from_api_to_s3',
+        external_dag_id='raw_ofz_from_moex_to_s3',
+        external_task_id='end',
+        execution_date_fn=get_external_execution_date,
         allowed_states=['success'],
-        mode='reschedule',
-        timeout=360000,
-        poke_interval=60,
+        mode='poke',  # Изменено с 'reschedule' на 'poke'
+        timeout=7200,  # 2 часа
+        poke_interval=60,  # Проверяем каждую минуту
     )
 
-    get_and_transfer_raw_data_to_ods_pg = PythonOperator(
+    transfer_task = PythonOperator(
         task_id='get_and_transfer_raw_data_to_ods_pg',
         python_callable=get_and_transfer_raw_data_to_ods_pg,
     )
@@ -177,4 +236,4 @@ with DAG(
         task_id='end',
     )
 
-    start >> sensor_on_raw_layer >> get_and_transfer_raw_data_to_ods_pg >> end
+    start >> sensor_on_raw_layer >> transfer_task >> end
