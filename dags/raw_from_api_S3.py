@@ -7,7 +7,7 @@ from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 
-OWNER = "i.korsakov"
+OWNER = "const"
 DAG_ID = "raw_ofzpd_from_moex_to_s3"
 
 LAYER = "raw"
@@ -111,7 +111,7 @@ def fetch_and_store_ofzpd(**context):
     con.register("ofzpd_data", (all_rows, cols))
 
     # Копируем в Parquet на S3
-    s3_path = f"s3://prod/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofzpd.parquet"
+    s3_path = f"s3://dev/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofzpd.parquet"
     con.execute(f"""
         COPY (SELECT * FROM ofzpd_data)
         TO '{s3_path}'
