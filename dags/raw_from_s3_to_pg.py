@@ -42,9 +42,9 @@ default_args = {
 
 
 def get_dates(**context) -> tuple[str, str]:
-    start_date = context['data_interval_start'].format('YYYY-MM-DD')
-    end_date = context['data_interval_end'].format('YYYY-MM-DD')
-    return start_date, end_date
+    exec_date = context["execution_date"]
+    prev_date = (exec_date - pendulum.duration(days=1)).format("YYYY-MM-DD")
+    return prev_date, prev_date
 
 
 def get_and_transfer_raw_data_to_ods_pg(**context):
@@ -211,18 +211,13 @@ with DAG(
         task_id='start',
     )
 
-    # Упрощенная функция для External Task Sensor
-    def get_external_execution_date(execution_date, **context):
-        # Возвращаем ту же дату выполнения, что и у текущего DAG'а
-        return execution_date
-
     sensor_on_raw_layer = ExternalTaskSensor(
         task_id='sensor_on_raw_layer',
         external_dag_id='raw_ofz_from_moex_to_s3',
         external_task_id='end',
-        execution_date_fn=get_external_execution_date,
+        execution_date_fn=lambda dt: dt.replace(hour=0, minute=0, second=0, microsecond=0),
         allowed_states=['success'],
-        mode='poke',  # Изменено с 'reschedule' на 'poke'
+        mode='poke',
         timeout=7200,  # 2 часа
         poke_interval=60,  # Проверяем каждую минуту
     )

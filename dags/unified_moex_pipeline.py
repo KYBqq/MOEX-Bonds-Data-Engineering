@@ -7,16 +7,25 @@ from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 
+# Конфигурация DAG
 OWNER = "const"
-DAG_ID = "raw_ofz_from_moex_to_s3"
+DAG_ID = "unified_moex_pipeline"
 
+# Используемые параметры
 LAYER = "raw"
 SOURCE = "moex_ofz"
+SCHEMA = "ods"
+TARGET_TABLE = "dwh_bond"
 
+# S3 доступ
 ACCESS_KEY = Variable.get("access_key")
 SECRET_KEY = Variable.get("secret_key")
 
-SHORT_DESCRIPTION = "Загрузка исторических котировок всех Облигаций с MOEX ISS API в S3"
+# Postgres через DuckDB
+PASSWORD = Variable.get("pg_password")
+
+# Описания
+SHORT_DESCRIPTION = "Единый пайплайн: загрузка OFZ с MOEX в S3 и затем в PostgreSQL"
 
 default_args = {
     "owner": OWNER,
@@ -145,7 +154,6 @@ def fetch_and_store_ofz(**context):
         """)
 
         # Создаем временную таблицу из данных
-        # Формируем VALUES строку для создания таблицы
         col_definitions = []
         for i, col in enumerate(cols):
             # Определяем тип данных на основе первой строки
@@ -188,7 +196,6 @@ def fetch_and_store_ofz(**context):
             con.execute(insert_sql)
 
         # Копируем в Parquet на S3
-        # ВАЖНО: используем start_date (execution_date Airflow), чтобы downstream DAG видел правильный файл
         s3_path = f"s3://dev/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofz.parquet"
         con.execute(f"""
             COPY (SELECT * FROM ofz_temp)
@@ -211,24 +218,180 @@ def fetch_and_store_ofz(**context):
                 pass
         raise
 
+def transfer_s3_to_pg(**context):
+    start_date, end_date = get_dates(**context)
+    logging.info(f"💻 Start load for dates: {start_date}/{end_date}")
+
+    try:
+        con = duckdb.connect()
+        
+        # Настройка S3 и PostgreSQL
+        con.execute("INSTALL httpfs; LOAD httpfs;")
+        con.execute("INSTALL postgres; LOAD postgres;")
+        
+        con.execute(f"""
+            SET TIMEZONE='UTC';
+            SET s3_url_style = 'path';
+            SET s3_endpoint = 'minio:9000';
+            SET s3_access_key_id = '{ACCESS_KEY}';
+            SET s3_secret_access_key = '{SECRET_KEY}';
+            SET s3_use_ssl = FALSE;
+        """)
+
+        # Проверяем существование файла в S3
+        s3_path = f"s3://dev/{LAYER}/{SOURCE}/{start_date}/{start_date}_ofz.parquet"
+        
+        try:
+            result = con.execute(f"SELECT COUNT(*) FROM '{s3_path}'").fetchone()
+            row_count = result[0] if result else 0
+            logging.info(f"Found {row_count} rows in {s3_path}")
+            
+            if row_count == 0:
+                logging.warning(f"No data found in {s3_path}")
+                return
+                
+        except Exception as e:
+            logging.error(f"Cannot read file {s3_path}: {e}")
+            raise
+
+        # Создание секрета для PostgreSQL
+        con.execute(f"""
+            CREATE SECRET IF NOT EXISTS dwh_postgres (
+                TYPE postgres,
+                HOST 'postgres_dwh',
+                PORT 5432,
+                DATABASE 'postgres',
+                USER 'postgres',
+                PASSWORD '{PASSWORD}'
+            );
+        """)
+
+        # Подключение к PostgreSQL
+        con.execute("ATTACH '' AS dwh_postgres_db (TYPE postgres, SECRET dwh_postgres);")
+
+        # Проверяем существование целевой таблицы
+        try:
+            con.execute(f"DESCRIBE dwh_postgres_db.{SCHEMA}.{TARGET_TABLE}")
+            logging.info(f"Target table {SCHEMA}.{TARGET_TABLE} exists")
+        except Exception as e:
+            logging.error(f"Target table {SCHEMA}.{TARGET_TABLE} does not exist: {e}")
+            raise
+
+        # Читаем данные из S3 и вставляем в PostgreSQL
+        insert_sql = f"""
+        INSERT INTO dwh_postgres_db.{SCHEMA}.{TARGET_TABLE}
+        (
+            boardid,
+            tradedate,
+            shortname,
+            secid,
+            numtrades,
+            value,
+            low,
+            high,
+            close,
+            legalcloseprice,
+            accint,
+            waprice,
+            yieldclose,
+            open,
+            volume,
+            marketprice2,
+            marketprice3,
+            mp2valtrd,
+            marketprice3tradesvalue,
+            matdate,
+            duration,
+            yieldatwap,
+            couponpercent,
+            couponvalue,
+            lasttradedate,
+            facevalue,
+            currencyid,
+            faceunit,
+            tradingsession,
+            trade_session_date
+        )
+        SELECT
+            COALESCE(BOARDID, '') AS boardid,
+            TRADEDATE::DATE AS tradedate,
+            COALESCE(SHORTNAME, '') AS shortname,
+            COALESCE(SECID, '') AS secid,
+            COALESCE(NUMTRADES, 0) AS numtrades,
+            COALESCE(VALUE, 0) AS value,
+            COALESCE(LOW, 0) AS low,
+            COALESCE(HIGH, 0) AS high,
+            COALESCE(CLOSE, 0) AS close,
+            COALESCE(LEGALCLOSEPRICE, 0) AS legalcloseprice,
+            COALESCE(ACCINT, 0) AS accint,
+            COALESCE(WAPRICE, 0) AS waprice,
+            COALESCE(YIELDCLOSE, 0) AS yieldclose,
+            COALESCE(OPEN, 0) AS open,
+            COALESCE(VOLUME, 0) AS volume,
+            COALESCE(MARKETPRICE2, 0) AS marketprice2,
+            COALESCE(MARKETPRICE3, 0) AS marketprice3,
+            COALESCE(MP2VALTRD, 0) AS mp2valtrd,
+            COALESCE(MARKETPRICE3TRADESVALUE, 0) AS marketprice3tradesvalue,
+            MATDATE::DATE AS matdate,
+            COALESCE(DURATION, 0) AS duration,
+            COALESCE(YIELDATWAP, 0) AS yieldatwap,
+            COALESCE(COUPONPERCENT, 0) AS couponpercent,
+            COALESCE(COUPONVALUE, 0) AS couponvalue,
+            LASTTRADEDATE::DATE AS lasttradedate,
+            COALESCE(FACEVALUE, 0) AS facevalue,
+            COALESCE(CURRENCYID, '') AS currencyid,
+            COALESCE(FACEUNIT, '') AS faceunit,
+            COALESCE(TRADINGSESSION, '') AS tradingsession,
+            '{start_date}'::DATE AS trade_session_date
+        FROM '{s3_path}'
+        WHERE TRADEDATE IS NOT NULL
+        """
+        
+        logging.info("Starting data insertion...")
+        con.execute(insert_sql)
+        
+        # Проверяем количество вставленных записей
+        inserted_count = con.execute(f"""
+            SELECT COUNT(*) FROM dwh_postgres_db.{SCHEMA}.{TARGET_TABLE} 
+            WHERE trade_session_date = '{start_date}'::DATE
+        """).fetchone()[0]
+        
+        logging.info(f"✅ Successfully inserted {inserted_count} records for date: {start_date}")
+        
+    except Exception as e:
+        logging.error(f"❌ Error in data transfer: {e}")
+        raise
+    finally:
+        if 'con' in locals():
+            con.close()
+
 with DAG(
     dag_id=DAG_ID,
+    schedule_interval='0 7 * * *',  # Запуск в 7:00
     default_args=default_args,
-    schedule_interval="0 6 * * *",
-    tags=["moex", "raw", "ofz"],
+    tags=['moex', 'unified', 'pipeline'],
     description=SHORT_DESCRIPTION,
     concurrency=1,
     max_active_tasks=1,
     max_active_runs=1,
 ) as dag:
 
-    start = EmptyOperator(task_id="start")
+    start = EmptyOperator(task_id='start')
 
-    load_ofz = PythonOperator(
-        task_id="fetch_and_store_ofz",
+    # Первый этап: загрузка данных с MOEX в S3
+    fetch_and_store_ofz_task = PythonOperator(
+        task_id='fetch_and_store_ofz',
         python_callable=fetch_and_store_ofz,
     )
 
-    end = EmptyOperator(task_id="end")
+    # Второй этап: перенос данных из S3 в PostgreSQL
+    transfer_s3_to_pg_task = PythonOperator(
+        task_id='transfer_s3_to_pg',
+        python_callable=transfer_s3_to_pg,
+    )
 
-    start >> load_ofz >> end
+    end = EmptyOperator(task_id='end')
+
+    # Цепочка выполнения
+    start >> fetch_and_store_ofz_task >> transfer_s3_to_pg_task >> end
+
