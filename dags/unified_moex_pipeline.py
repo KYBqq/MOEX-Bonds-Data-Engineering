@@ -6,6 +6,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # Конфигурация DAG
 OWNER = "const"
@@ -390,8 +391,19 @@ with DAG(
         python_callable=transfer_s3_to_pg,
     )
 
+    # Триггерим витрины DM, передавая дату (вчера) как target_date
+    trigger_dm_facts = TriggerDagRunOperator(
+        task_id='trigger_fct_count_day_bond',
+        trigger_dag_id='fct_count_day_bond',
+        conf={
+            'target_date': "{{ (data_interval_start.subtract(days=1)).format('YYYY-MM-DD') }}"
+        },
+        wait_for_completion=False,
+        reset_dag_run=True,
+    )
+
     end = EmptyOperator(task_id='end')
 
     # Цепочка выполнения
-    start >> fetch_and_store_ofz_task >> transfer_s3_to_pg_task >> end
+    start >> fetch_and_store_ofz_task >> transfer_s3_to_pg_task >> trigger_dm_facts >> end
 
