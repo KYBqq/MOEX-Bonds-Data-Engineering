@@ -1,1 +1,1 @@
-<img width="3840" height="1459" alt="Untitled diagram _ Mermaid Chart-2025-08-08-114843" src="https://github.com/user-attachments/assets/8950e4c7-8c4e-474e-8aa8-e5503f0177c0" />
+<img width="3840" height="358" alt="Untitled diagram _ Mermaid Chart-2025-08-08-114934" src="https://github.com/user-attachments/assets/73773d8b-f44f-42f5-afde-95a6106561d9" />
