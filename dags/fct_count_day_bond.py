@@ -4,6 +4,7 @@ from airflow import DAG
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+import logging
 
 # Конфигурация DAG
 OWNER = "const"
@@ -24,8 +25,8 @@ SHORT_DESCRIPTION = "SHORT DESCRIPTION"
 
 args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(2025, 5, 1, tz="Europe/Moscow"),
-    "catchup": True,
+    "start_date": pendulum.datetime(2025, 8, 7, tz="Europe/Moscow"),
+    "catchup": False,
     "retries": 3,
     "retry_delay": pendulum.duration(hours=1),
 }
@@ -33,7 +34,7 @@ args = {
 
 with DAG(
     dag_id=DAG_ID,
-    schedule_interval="0 8 * * *",
+    schedule_interval=None,  # Отключаем расписание - DAG триггерится через unified_moex_pipeline
     default_args=args,
     tags=["dm", "pg"],
     description=SHORT_DESCRIPTION,
@@ -72,8 +73,18 @@ with DAG(
                 );
             """)
             con.execute("ATTACH '' AS dwh_postgres_db (TYPE postgres, SECRET dwh_postgres);")
-            con.execute(
-                """
+            # Сначала удаляем существующие записи для новых secid
+            con.execute("""
+                DELETE FROM dwh_postgres_db.dm.dim_bond
+                WHERE secid IN (
+                    SELECT DISTINCT secid 
+                    FROM dwh_postgres_db.ods.dwh_bond 
+                    WHERE secid IS NOT NULL AND secid <> ''
+                );
+            """)
+            
+            # Затем вставляем новые/обновленные записи
+            con.execute("""
                 INSERT INTO dwh_postgres_db.dm.dim_bond (secid, shortname, matdate, facevalue, currencyid, faceunit)
                 SELECT DISTINCT
                   secid,
@@ -83,15 +94,10 @@ with DAG(
                   currencyid,
                   faceunit
                 FROM dwh_postgres_db.ods.dwh_bond
-                WHERE secid IS NOT NULL AND secid <> ''
-                ON CONFLICT (secid) DO UPDATE
-                  SET shortname = EXCLUDED.shortname,
-                      matdate   = EXCLUDED.matdate,
-                      facevalue = EXCLUDED.facevalue,
-                      currencyid= EXCLUDED.currencyid,
-                      faceunit  = EXCLUDED.faceunit;
-                """
-            )
+                WHERE secid IS NOT NULL AND secid <> '';
+            """)
+            
+            logging.info("✅ dm.dim_bond upsert done")
         finally:
             con.close()
 
