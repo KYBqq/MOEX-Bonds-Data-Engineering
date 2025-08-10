@@ -6,6 +6,10 @@
 
 Технологический стек: DWH — PostgreSQL; оркестрация — Apache Airflow; файловое хранилище — S3 (MinIO); ETL/перенос — DuckDB; визуализация — Apache Superset; инфраструктура — Docker Compose.
 
+![ezgif-256a275535e78a](https://github.com/user-attachments/assets/7a8de85b-f8b6-4a9a-8871-ee2810ef3267)
+![ezgif-37690438834369](https://github.com/user-attachments/assets/7ed14ef1-5ed8-4d4b-84da-a6f3cbb6f6e5)
+
+
 ### Состав и стек
 - Docker Compose-сервис: `superset`, `postgres_dwh` (PostgreSQL), `minio`, `redis`, `airflow-*` (webserver, scheduler, worker, triggerer)
 - ETL/оркестрация: Apache Airflow (DAG `unified_moex_pipeline`)
