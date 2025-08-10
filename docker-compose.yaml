@@ -95,7 +95,8 @@ services:
     environment:
       - SUPERSET_SECRET_KEY=1234
       - SUPERSET_SECRET_KEY=1234
-      - SUPERSET_DATABASE_URI=postgresql+psycopg2://superset:superset@postgres_dwh:5432/superset
+      - SUPERSET_DATABASE_URI=postgresql+psycopg2://postgres:postgres@postgres_dwh:5432/postgres
+      - PIP_ADDITIONAL_REQUIREMENTS=psycopg2-binary==2.9.9
       - REDIS_HOST=redis
       - SUPERSET_ADMIN_USERNAME=admin
       - SUPERSET_ADMIN_PASSWORD=admin
