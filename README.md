@@ -2,7 +2,9 @@
 
 ![Untitled diagram _ Mermaid Chart-2025-08-08-115113](https://github.com/user-attachments/assets/bd8439b7-d24c-4299-9a74-613b423191f5)
 
-Проект по сбору и загрузке исторических данных по облигациям MOEX в DWH на PostgreSQL: оркестрация — Apache Airflow, файловое хранилище — S3 (MinIO), ETL/перенос — DuckDB, визуализация — Apache Superset, инфраструктура — Docker Compose.
+Проект по сбору и загрузке исторических данных по облигациям, биржа MOEX.
+
+Технологический стек: DWH — PostgreSQL; оркестрация — Apache Airflow; файловое хранилище — S3 (MinIO); ETL/перенос — DuckDB; визуализация — Apache Superset; инфраструктура — Docker Compose.
 
 ### Состав и стек
 - Docker Compose-сервис: `superset`, `postgres_dwh` (PostgreSQL), `minio`, `redis`, `airflow-*` (webserver, scheduler, worker, triggerer)
@@ -95,6 +97,20 @@ postgresql+psycopg2://postgres:postgres@postgres_dwh:5432/postgres?sslmode=disab
   - `dm.dim_bond` — размерность облигаций (уникальные `secid` и атрибуты)
   - `dm.fct_bond_day` — факт по дням: агрегаты (объём, сделки, мин/макс/средние)
 
+### Почему используем S3 (MinIO)
+
+- Что такое S3: объектное хранилище, доступное по HTTP(S). Данные хранятся как объекты в «бакетах», к ним обращаются по ключу/пути. Масштабируемо, дешево, отказоустойчиво. MinIO — self-hosted реализация S3 API, полностью совместимая с AWS S3.
+- Зачем в этом проекте:
+  - Буфер между парсингом и загрузкой в DWH: надёжный staging-слой. Если БД недоступна, данные не теряются.
+  - Идемпотентность и воспроизводимость: складываем «сырые» выгрузки по датам; легко перегрузить/переиграть этап загрузки в БД без повторного парсинга.
+  - Разделение нагрузок: чтение/агрегации выполняем из файлов (Parquet), не нагружая Postgres лишними операциями.
+  - Эффективное хранение: Parquet + gzip — колонночный формат, сжатие и быстрые сканы для аналитики.
+  - Совместимость и переносимость: те же файлы читают DuckDB, Spark, Pandas и др.; локально MinIO, в облаке — AWS S3 без переписывания кода.
+  - Параллелизация и версионирование: каталогизация путём `s3://dev/raw/moex_ofz/<YYYY-MM-DD>/<date>_ofz.parquet` позволяет легко распараллеливать и отслеживать версии.
+- Как мы работаем с S3 в коде:
+  - В DuckDB: `INSTALL httpfs; LOAD httpfs;` и настройки `s3_*` (endpoint `minio:9000`, `s3_url_style='path'`, без SSL локально).
+  - Доступы берём из Airflow Variables: `access_key`, `secret_key`. Секреты не храним в репозитории.
+
 ---
 
 ## Траблшутинг
@@ -161,5 +177,22 @@ postgresql+psycopg2://postgres:postgres@postgres_dwh:5432/postgres?sslmode=disab
    ```bash
    docker compose exec superset python -c "import psycopg2; psycopg2.connect(host='postgres_dwh', dbname='postgres', user='postgres', password='postgres').close(); print('OK')"
    ```
+
+---
+
+## Требования к среде (локально)
+
+- Минимум для запуска (Docker Desktop):
+  - CPU: 4 vCPU
+  - RAM: 8 GB
+  - Диск: 150+ GB свободного места
+  - Порты: 8080 (Airflow), 8088 (Superset), 9000/9001 (MinIO), 5432 (Postgres)
+- Рекомендуемо для комфортной работы на ПК/локальном сервере:
+  - CPU: 4–8 vCPU
+  - RAM: 16 GB
+  - Диск: 200+ GB (с запасом для Parquet и логов)
+  - Сеть: стабильное подключение для работы c MOEX API
+
+ 
 
 
