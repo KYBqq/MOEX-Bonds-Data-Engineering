@@ -205,3 +205,45 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/config/iam/sts/Z7FXALEV3C00S6M8AD1C/identity.json/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/.heal/mrf/list.bin
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+Заметки по проекту US-Treasury-Data-Engineering.url
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage-cache.bin/xl.meta
+data/.minio.sys/buckets/.usage-cache.bin.bkp/xl.meta
+data/.minio.sys/tmp/810f0b6a-3ea5-41ce-9f6c-5a9848bb98e9
+data/.minio.sys/tmp/fe6a5845-0f12-4b71-8bec-ae8adbd73b05
+logs/scheduler/latest
+logs/scheduler/latest
+
+#Project
+data\
+logs\
+cred.py
+\xl.meta
+Заметки, US-Treasury-Data-Engineering.url
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin.bkp/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin/xl.meta
+data/.minio.sys/buckets/dev/.usage-cache.bin.bkp/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.bloomcycle.bin/xl.meta
+data/.minio.sys/buckets/.usage.json/xl.meta
+Заметки, MOEX-bonds-Data-Engineering..url
+/data
+/data
+/data
