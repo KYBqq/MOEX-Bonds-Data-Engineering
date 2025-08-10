@@ -4,11 +4,13 @@
 
 Проект по сбору и загрузке исторических данных по облигациям, биржа MOEX.
 
-Технологический стек: 
+Технологический стек:
+
 ```
 Инфраструктура — Docker Compose;
-DWH — PostgreSQL; оркестрация — Apache Airflow; 
-файловое хранилище — S3 (MinIO); 
+Оркестрация — Apache Airflow; 
+DWH — PostgreSQL;
+Файловое хранилище — S3 (MinIO); 
 ETL/перенос — DuckDB; 
 Визуализация — Apache Superset.
 ``` 
