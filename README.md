@@ -9,8 +9,8 @@
 ```
 Инфраструктура — Docker Compose;
 Оркестрация — Apache Airflow; 
-DWH — PostgreSQL;
-Файловое хранилище — S3 (MinIO); 
+Файловое хранилище — S3 (MinIO);
+DWH — PostgreSQL; 
 ETL/перенос — DuckDB; 
 Визуализация — Apache Superset.
 ``` 
