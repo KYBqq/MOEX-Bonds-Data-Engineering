@@ -6,6 +6,16 @@
 
 Технологический стек: 
 
+```
+Инфраструктура — Docker Compose;
+Оркестрация — Apache Airflow; 
+Файловое хранилище — S3 (MinIO);
+DWH — PostgreSQL; 
+ETL/перенос — DuckDB; 
+Визуализация — Apache Superset.
+```
+
+
 Airflow:
 
 ![ezgif-56cac16664d0a9](https://github.com/user-attachments/assets/fb723e63-18d1-485f-956e-96b083c2d46e)
