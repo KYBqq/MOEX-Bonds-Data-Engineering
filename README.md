@@ -13,8 +13,9 @@
 DWH — PostgreSQL; 
 ETL/перенос — DuckDB; 
 Визуализация — Apache Superset.
-``` 
+```
 
+![ezgif-56cac16664d0a9](https://github.com/user-attachments/assets/fb723e63-18d1-485f-956e-96b083c2d46e)
 ![ezgif-37690438834369](https://github.com/user-attachments/assets/7ed14ef1-5ed8-4d4b-84da-a6f3cbb6f6e5)
 ![ezgif-256a275535e78a](https://github.com/user-attachments/assets/7a8de85b-f8b6-4a9a-8871-ee2810ef3267)
 
