@@ -6,9 +6,6 @@
 
 Технологический стек: 
 
-```
-
-
 Airflow:
 
 ![ezgif-56cac16664d0a9](https://github.com/user-attachments/assets/fb723e63-18d1-485f-956e-96b083c2d46e)
