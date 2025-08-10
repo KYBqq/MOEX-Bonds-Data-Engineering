@@ -168,6 +168,22 @@ postgresql+psycopg2://postgres:postgres@postgres_dwh:5432/postgres?sslmode=disab
 - В коде DAG используется DuckDB (`INSTALL httpfs`, `LOAD postgres`) для простого ETL.
 - Переменные окружения (ключи S3 и пароль Postgres) подтягиваются из переменных Airflow (`Variable.get(...)`).
 
+#### Как сделано у нас
+- В текущих DAG `conn_id` для Postgres не используется.
+- Подключение к DWH выполняется через DuckDB Postgres extension:
+  - HOST `postgres_dwh`, DB `postgres`, USER `postgres`, PASSWORD из Airflow Variable `pg_password`.
+- Доступ к S3 для DuckDB (`httpfs`) берётся из Airflow Variables: `access_key`, `secret_key`.
+- Для прод-сред — хранить секреты в Airflow Connections/Secrets Backend.
+
+### Airflow: conn_id через Variable.get — чем чревато
+
+- Нет переменной — DAG не парсится (поможет `default_var`).
+- Секреты в Variables хранить нельзя (пароли/URI — только Connections/Secrets).
+- Смена переменной меняет коннект со следующего парсинга.
+- По коду неочевидно, какой коннект — сложнее поддержка.
+
+Рекомендуем: фиксировать `conn_id` в коде (например, `postgres_dwh`), секреты — в Connections/Secrets.
+
 ### Чек-лист: если после создания учётки Superset всё ещё 500
 
 1) Убедитесь, что создан администратор (после первого запуска это обязательно):
